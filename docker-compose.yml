@@ -1,0 +1,43 @@
+# ===================================================================
+#  Aura Regex Platform - Docker Compose Configuration v2.0 (Corrected)
+# ===================================================================
+services:
+  # خدمة قاعدة البيانات
+  postgres_db:
+    image: postgres:14-alpine
+    container_name: aura_postgres_db_prod # اسم جديد للإنتاج
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER} # سيقرأ من متغيرات البيئة
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # لا تعرض المنفذ للعالم الخارجي في الإنتاج، فقط للخدمات الداخلية
+      - "5432:5432" 
+
+  # خدمة الخادم (API)
+  backend_api:
+    build:
+      context: ./apps/backend # المسار الصحيح
+      dockerfile: Dockerfile
+    container_name: aura_backend_api_prod
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres_db
+    environment:
+      # سيتم توفير هذا من إعدادات DigitalOcean
+      DATABASE_URL: ${DATABASE_URL} 
+      PORT: 8000
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: "2h"
+      FRONTEND_URL: ${FRONTEND_URL} # عنوان الواجهة الأمامية
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+
+volumes:
+  postgres_data:
+
+# لا نحتاج إلى شبكة مخصصة هنا، App Platform ستديرها

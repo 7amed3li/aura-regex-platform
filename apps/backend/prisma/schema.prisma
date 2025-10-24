@@ -1,0 +1,170 @@
+// =======================================================
+//  Aura Regex Platform - Final Schema v3.1 (Corrected)
+// =======================================================
+
+// 1. Configuration
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 2. Enums (for controlled value sets)
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  BANNED
+}
+
+enum RegexSafety {
+  SAFE
+  UNSAFE
+  UNKNOWN
+}
+
+// 3. User Model (with Roles and Status)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String?  @unique
+  password  String
+  role      UserRole @default(USER)
+  status    AccountStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  folders        Folder[]
+  rules          Rule[]
+  generationLogs GenerationLog[]
+  likes          RuleLike[]
+  testCases      TestCase[] // <-- السطر الذي أضفناه
+}
+
+// 4. Folder Model (for organizing rules)
+model Folder {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationship to User
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relationship to Rules
+  rules Rule[]
+
+  @@unique([userId, name]) // A user cannot have two folders with the same name
+  @@index([userId])
+}
+
+// 5. Rule Model (with Versioning, Sharing, and Stats)
+model Rule {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  naturalLang String
+  regex       String
+  isPublic    Boolean  @default(false) // For sharing
+  timesUsed   Int      @default(0)     // For stats
+  lastUsedAt  DateTime?                // For stats
+  
+  // Security fields
+  safetyStatus    RegexSafety @default(UNKNOWN)
+  safetyDetails   String?     // Details from the ReDoS analysis library
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relationships
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId    String?
+  folder      Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  versions    RuleVersion[]
+  testCases   TestCase[]
+  likes       RuleLike[]
+  
+  @@index([userId])
+  @@index([folderId])
+}
+
+// 6. TestCase Model
+model TestCase {
+  id        String   @id @default(cuid())
+  name      String   // e.g., "Should match valid email"
+  testText  String   // The text to test the regex against
+  shouldMatch Boolean  // True if it's a success case, False if it's a failure case
+  createdAt DateTime @default(now())
+
+  // Relationship to Rule (Made optional)
+  ruleId String?
+  rule   Rule?   @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  // Relationship to User (Added)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([userId]) // Added index for user
+}
+
+
+// 7. RuleLike Model
+model RuleLike {
+  createdAt DateTime @default(now())
+
+  // Relationships (Composite Primary Key)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ruleId String
+  rule   Rule   @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, ruleId]) // A user can like a rule only once
+  @@index([ruleId])
+}
+
+// 8. RuleVersion Model
+model RuleVersion {
+  id          String   @id @default(cuid())
+  naturalLang String
+  regex       String
+  createdAt   DateTime @default(now())
+
+  // Relationship to the parent Rule
+  ruleId String
+  rule   Rule   @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+}
+
+// 9. GenerationLog Model
+model GenerationLog {
+  id            String    @id @default(cuid())
+  correlationId String?   @unique // To trace a request across services
+  input         String
+  output        String
+  isSuccess     Boolean
+  executionTime Int       // In milliseconds
+  modelVersion  String?   // e.g., "gpt-4-turbo"
+  cost          Float?    // API cost for this generation
+  rating        Int?      // User rating (1-5)
+  wasCorrect    Boolean?  // Simple user feedback
+  createdAt     DateTime  @default(now())
+
+  // Relationship to User (optional for anonymous users)
+  userId String?
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([correlationId])
+}

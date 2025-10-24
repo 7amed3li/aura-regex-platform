@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    // --- Temel Ortam Ayarları (Essential Environment Settings) ---
+    "target": "ES2022", // Modern Node.js sürümleriyle uyumlu JavaScript sürümü
+    "module": "NodeNext", // Modern Node.js için ESM ve CJS uyumluluğu
+    "moduleResolution": "NodeNext", // 'module' ile uyumlu modül çözümleme stratejisi
+    "lib": ["ES2022"], // Kodda kullanılabilir standart JavaScript kütüphaneleri
+    "types": ["node"], // Projenin bir Node.js ortamında çalıştığını belirtir
+
+    // --- Birlikte Çalışabilirlik (Interoperability) ---
+    "allowJs": true, // JavaScript dosyalarının (.js) TypeScript projesine dahil edilmesine izin verir
+    "esModuleInterop": true, // CommonJS modüllerinin ES modülleri gibi import edilmesini sağlar
+    "forceConsistentCasingInFileNames": true, // Dosya adlarında büyük/küçük harf tutarlılığını zorunlu kılar
+
+    // --- Çıktı Ayarları (Output Settings) ---
+    "outDir": "./dist", // Derlenmiş JavaScript dosyalarının konulacağı klasör
+    "rootDir": "./src", // TypeScript kaynak kodunun bulunduğu ana klasör
+    "sourceMap": true, // Hata ayıklama için .js.map dosyaları oluşturur
+    "declaration": true, // Her .js dosyası için bir .d.ts dosyası oluşturur
+    "declarationMap": true, // .d.ts dosyaları için source map oluşturur
+
+    // --- Katı Tip Kontrolü (Strict Type-Checking) ---
+    "strict": true, // Tüm katı tip kontrolü seçeneklerini etkinleştirir (önerilir)
+    "skipLibCheck": true, // Bağımlılıkların (node_modules) tip kontrolünü atlar, derlemeyi hızlandırır
+    "noUncheckedIndexedAccess": true, // Index imzalarından gelen potansiyel 'undefined' hatalarını yakalar
+
+    // --- Modül Algılama (Module Detection) ---
+    "moduleDetection": "force" // Her dosyanın bir modül olarak kabul edilmesini sağlar
+  },
+  "include": ["src/**/*"], // Derlenecek dosyaların bulunduğu klasörler
+  "exclude": ["node_modules", "dist"] // Derleme işleminden hariç tutulacak klasörler
+}
