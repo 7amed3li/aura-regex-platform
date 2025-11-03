@@ -150,21 +150,37 @@ model RuleVersion {
 // 9. GenerationLog Model
 model GenerationLog {
   id            String    @id @default(cuid())
-  correlationId String?   @unique // To trace a request across services
+  correlationId String? @default(cuid())
   input         String
   output        String
+  explanation     String?
   isSuccess     Boolean
-  executionTime Int       // In milliseconds
-  modelVersion  String?   // e.g., "gpt-4-turbo"
-  cost          Float?    // API cost for this generation
-  rating        Int?      // User rating (1-5)
-  wasCorrect    Boolean?  // Simple user feedback
+  executionTime Int
+  modelVersion  String?
+  cost          Float?
+  rating        Int?
+  wasCorrect    Boolean?
   createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt   
 
-  // Relationship to User (optional for anonymous users)
   userId String?
-  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([correlationId])
 }
+
+
+// 10. LoginAttempt Model (New for Brute Force Protection)
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  email     String
+  success   Boolean  @default(false)
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([ip, email]) // Ensure unique combination of IP and email
+  @@index([ip]) // Improve query performance for IP-based checks
+}
+

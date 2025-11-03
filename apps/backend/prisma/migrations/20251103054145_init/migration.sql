@@ -59,7 +59,8 @@ CREATE TABLE "TestCase" (
     "testText" TEXT NOT NULL,
     "shouldMatch" BOOLEAN NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "ruleId" TEXT NOT NULL,
+    "ruleId" TEXT,
+    "userId" TEXT NOT NULL,
 
     CONSTRAINT "TestCase_pkey" PRIMARY KEY ("id")
 );
@@ -97,9 +98,23 @@ CREATE TABLE "GenerationLog" (
     "rating" INTEGER,
     "wasCorrect" BOOLEAN,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
     "userId" TEXT,
 
     CONSTRAINT "GenerationLog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "LoginAttempt" (
+    "id" TEXT NOT NULL,
+    "ip" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "success" BOOLEAN NOT NULL DEFAULT false,
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "LoginAttempt_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -124,6 +139,9 @@ CREATE INDEX "Rule_folderId_idx" ON "Rule"("folderId");
 CREATE INDEX "TestCase_ruleId_idx" ON "TestCase"("ruleId");
 
 -- CreateIndex
+CREATE INDEX "TestCase_userId_idx" ON "TestCase"("userId");
+
+-- CreateIndex
 CREATE INDEX "RuleLike_ruleId_idx" ON "RuleLike"("ruleId");
 
 -- CreateIndex
@@ -138,6 +156,12 @@ CREATE INDEX "GenerationLog_userId_idx" ON "GenerationLog"("userId");
 -- CreateIndex
 CREATE INDEX "GenerationLog_correlationId_idx" ON "GenerationLog"("correlationId");
 
+-- CreateIndex
+CREATE INDEX "LoginAttempt_ip_idx" ON "LoginAttempt"("ip");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "LoginAttempt_ip_email_key" ON "LoginAttempt"("ip", "email");
+
 -- AddForeignKey
 ALTER TABLE "Folder" ADD CONSTRAINT "Folder_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -149,6 +173,9 @@ ALTER TABLE "Rule" ADD CONSTRAINT "Rule_folderId_fkey" FOREIGN KEY ("folderId") 
 
 -- AddForeignKey
 ALTER TABLE "TestCase" ADD CONSTRAINT "TestCase_ruleId_fkey" FOREIGN KEY ("ruleId") REFERENCES "Rule"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TestCase" ADD CONSTRAINT "TestCase_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RuleLike" ADD CONSTRAINT "RuleLike_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

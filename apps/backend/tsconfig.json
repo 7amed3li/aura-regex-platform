@@ -1,32 +1,41 @@
 {
   "compilerOptions": {
-    // --- Temel Ortam Ayarları (Essential Environment Settings) ---
-    "target": "ES2022", // Modern Node.js sürümleriyle uyumlu JavaScript sürümü
-    "module": "NodeNext", // Modern Node.js için ESM ve CJS uyumluluğu
-    "moduleResolution": "NodeNext", // 'module' ile uyumlu modül çözümleme stratejisi
-    "lib": ["ES2022"], // Kodda kullanılabilir standart JavaScript kütüphaneleri
-    "types": ["node"], // Projenin bir Node.js ortamında çalıştığını belirtir
+    // --- الإعدادات الأساسية (Essential Environment Settings) ---
+    "target": "ES2022",                    // نسخة JavaScript الناتجة (مناسبة لآخر إصدارات Node.js)
+    "module": "NodeNext",                  // يدعم ESM و CommonJS في نفس الوقت (لـ Node.js الحديث)
+    "moduleResolution": "NodeNext",        // نفس أسلوب حل الوحدات مع ESM
+    "lib": ["ES2022"],                     // مكتبات JavaScript القياسية المسموح بها
+    "types": ["node"],                     // لأن المشروع بيشتغل على بيئة Node.js
 
-    // --- Birlikte Çalışabilirlik (Interoperability) ---
-    "allowJs": true, // JavaScript dosyalarının (.js) TypeScript projesine dahil edilmesine izin verir
-    "esModuleInterop": true, // CommonJS modüllerinin ES modülleri gibi import edilmesini sağlar
-    "forceConsistentCasingInFileNames": true, // Dosya adlarında büyük/küçük harf tutarlılığını zorunlu kılar
+    // --- التوافق والتشغيل المشترك (Interoperability) ---
+    "allowJs": true,                       // يسمح بدمج ملفات .js في المشروع
+    "esModuleInterop": true,               // يسمح باستيراد CommonJS على شكل ESM
+    "forceConsistentCasingInFileNames": true, // يمنع أخطاء اختلاف الأحرف في أسماء الملفات
 
-    // --- Çıktı Ayarları (Output Settings) ---
-    "outDir": "./dist", // Derlenmiş JavaScript dosyalarının konulacağı klasör
-    "rootDir": "./src", // TypeScript kaynak kodunun bulunduğu ana klasör
-    "sourceMap": true, // Hata ayıklama için .js.map dosyaları oluşturur
-    "declaration": true, // Her .js dosyası için bir .d.ts dosyası oluşturur
-    "declarationMap": true, // .d.ts dosyaları için source map oluşturur
+    // --- إعدادات الإخراج (Output Settings) ---
+    "outDir": "./dist",                    // مكان إخراج الملفات بعد التحويل
+    "rootDir": "./src",                    // مجلد الكود الأساسي
+    "sourceMap": true,                     // يولّد خرائط للمساعدة في تصحيح الأخطاء (debug)
+    "declaration": false,                  // ما نحتاج ملفات .d.ts في هذا الباكإند
+    "declarationMap": false,               // إلغاء خرائط ملفات التعريف
 
-    // --- Katı Tip Kontrolü (Strict Type-Checking) ---
-    "strict": true, // Tüm katı tip kontrolü seçeneklerini etkinleştirir (önerilir)
-    "skipLibCheck": true, // Bağımlılıkların (node_modules) tip kontrolünü atlar, derlemeyi hızlandırır
-    "noUncheckedIndexedAccess": true, // Index imzalarından gelen potansiyel 'undefined' hatalarını yakalar
+    // --- فحص الأنواع (Type Checking) ---
+    "strict": true,                        // يفعل جميع الفحوصات الصارمة
+    "skipLibCheck": true,                  // يتجاهل فحص الأنواع في node_modules (لتسريع build)
+    "noUncheckedIndexedAccess": true,      // يمنع الوصول لعناصر قد تكون undefined
+    "noImplicitAny": true,                 // يمنع المتغيرات بدون نوع محدد
+    "noEmitOnError": true,                 // يمنع الإخراج لو فيه أخطاء
 
-    // --- Modül Algılama (Module Detection) ---
-    "moduleDetection": "force" // Her dosyanın bir modül olarak kabul edilmesini sağlar
+    // --- اكتشاف الوحدات (Module Detection) ---
+    "moduleDetection": "force",            // يجبر كل ملف أن يعتبر وحدة (module)
+
+    // --- مسارات/خيارات مفيدة ---
+    "resolveJsonModule": true,             // يسمح باستيراد JSON
+    "allowSyntheticDefaultImports": true   // يسهل استيراد مكتبات بدون default export
+    // ملاحظة: ما أضفنا "typeRoots" عشان ما يمنع تحميل تعريفاتك المخصّصة تلقائيًا
   },
-  "include": ["src/**/*"], // Derlenecek dosyaların bulunduğu klasörler
-  "exclude": ["node_modules", "dist"] // Derleme işleminden hariç tutulacak klasörler
+
+  // ✅ نخلي الـ TypeScript يشمل ملفات التعريف المخصصة داخل src/types
+  "include": ["src", "src/**/*", "src/types", "src/types/**/*"],
+  "exclude": ["node_modules", "dist", ".prisma"]
 }
