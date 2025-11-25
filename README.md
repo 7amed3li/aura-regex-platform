@@ -1,6 +1,6 @@
 # 🔮 Aura Regex Platform
 
-![Aura Regex Platform Banner](https://via.placeholder.com/1200x400?text=Aura+Regex+Platform)
+![Aura Regex Platform Banner]<img width="1747" height="927" alt="image" src="https://github.com/user-attachments/assets/485b7b19-7a46-4569-b85d-f75af4c5f29b" />
 
 > **The Ultimate AI-Powered Regular Expression Assistant.**  
 > Generate, test, debug, and share regex patterns with the power of AI and a vibrant community.
