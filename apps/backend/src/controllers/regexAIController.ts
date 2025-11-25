@@ -1,23 +1,36 @@
 import { Request, Response } from 'express';
+// تأكد أن هذا المسار صحيح لملف الخدمة
 import { generateRegexWithAI } from '../services/regexAIService.js';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 // ✅ الذكاء الاصطناعي لتوليد الـ Regex من النص
-// ✅ الذكاء الاصطناعي لتوليد الـ Regex من النص
 export const generateRegexController = async (req: Request, res: Response) => {
   try {
-    const { prompt } = req.body;
+    // 💡 التعديل: استقبال generationType من الـ Body
+    // generationType يمكن أن يكون 'ACADEMIC' أو 'DAILY'
+    const { prompt, generationType } = req.body;
     const userId = (req as any).user?.id;
 
     if (!prompt || prompt.trim() === '') {
       return res.status(400).json({ success: false, message: '⚠️ prompt alanı boş olamaz.' });
     }
 
-    // 🧠 استدعاء خدمة الذكاء الاصطناعي مباشرة بنص المستخدم
+    // 🧠 استدعاء خدمة الذكاء الاصطناعي مع تمرير النوع الجديد
     const startTime = Date.now();
-    const { regexResult, explanation, mode, modelVersion, executionTime } = await generateRegexWithAI(prompt);
+
+    const {
+      regexResult,
+      explanation,
+      pythonExampleCode, // ✅ حقل جديد نستقبله من الخدمة
+      mode,
+      modelVersion,
+      executionTime
+    } = await generateRegexWithAI(
+      prompt,
+      generationType // تمرير نوع التوليد
+    );
     const endTime = Date.now();
 
     // 🧾 حفظ السجل في قاعدة البيانات
@@ -26,39 +39,54 @@ export const generateRegexController = async (req: Request, res: Response) => {
         userId: userId ?? null,
         input: prompt,
         output: regexResult,
-        explanation, // ✅ نضيف الشرح هنا
+        explanation, 
+        // ✅ تم تفعيل الحقول لتخزين البيانات بشكل صحيح
+        pythonExampleCode: pythonExampleCode, 
+        generationType: generationType,
         isSuccess: true,
         executionTime: executionTime ?? endTime - startTime,
         modelVersion,
       },
     });
 
-    // ✅ الرد على العميل
     return res.status(200).json({
       success: true,
       message: '✅ Regex başarıyla üretildi.',
-      mode,
+      id: log.id,
       regex: regexResult,
       explanation,
-      logId: log.id,
+      pythonExampleCode, // ✅ إرسال كود بايثون نظيف للفرونت إند
+      mode,
+      modelVersion,
+      executionTime: executionTime ?? endTime - startTime,
     });
-  } catch (error: any) {
-    console.error('❌ Regex AI Controller error:', error);
 
-    await prisma.generationLog.create({
-      data: {
-        input: req.body?.prompt || '',
-        output: error.message,
-        isSuccess: false,
-        executionTime: 0,
-        modelVersion: 'gemini-2.5-flash',
-      },
-    });
+  } catch (error: any) {
+    console.error('=======================================');
+    console.error('=== GOOGLE GEMINI API ERROR DETAILS ===');
+    console.error('=======================================');
+    console.error(error);
+    console.error('=======================================');
+
+    // محاولة تسجيل الخطأ في القاعدة
+    try {
+      await prisma.generationLog.create({
+        data: {
+          input: req.body?.prompt || '',
+          output: error.message,
+          isSuccess: false,
+          executionTime: 0,
+          modelVersion: 'gemini-2.5-flash',
+        },
+      });
+    } catch (dbError) {
+      console.error("Failed to log error to DB", dbError);
+    }
 
     res.status(500).json({
       success: false,
       message: '🚨 Regex üretilemedi.',
-      error: error.message,
+      error: error.message || 'An internal error occurred.',
     });
   }
 };

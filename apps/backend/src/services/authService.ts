@@ -1,23 +1,37 @@
+// src/services/authService.ts
+
 import bcrypt from 'bcryptjs';
-import { Prisma, PrismaClient, User } from '@prisma/client';
+import { PrismaClient, User, Prisma } from '@prisma/client';
 import jwt, { SignOptions } from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
 
-// دالة موحّدة لتوقيع الـ JWT مع فحص القيم من .env وضبط الأنواع
-function signJwt(payload: object) {
+// =============================================================================
+// 1. Helper Functions & Configuration
+// =============================================================================
+
+/**
+ * إنشاء JWT Token باستخدام المفاتيح من ملف .env
+ * @param payload البيانات التي سيتم تشفيرها داخل التوكن (User ID, Role)
+ */
+function signJwt(payload: object): string {
   const secret = process.env.JWT_SECRET;
   const expiresIn = process.env.JWT_EXPIRATION;
 
   if (!secret || !expiresIn) {
-    throw new Error('JWT secret or expiration is not defined in .env file.');
+    throw new Error('SERVER CONFIG ERROR: JWT_SECRET or JWT_EXPIRATION is missing.');
   }
 
-  const options: SignOptions = { expiresIn }; // مثال: "2h" أو "1d" أو رقم بالثواني
+  // ✅ Fix 1: حل مشكلة النوع بذكاء (Type Casting)
+  // نستخدم 'as any' لنتجاوز تعقيدات مكتبة jsonwebtoken مع الأنواع النصية
+  const options: SignOptions = { expiresIn: expiresIn as any }; 
+  
   return jwt.sign(payload, secret, options);
 }
 
-// --- دالة مساعدة لتسجيل المحاولات الفاشلة ---
+/**
+ * تسجيل محاولة دخول فاشلة لحماية النظام من Brute Force
+ */
 async function recordFailedLoginAttempt(email: string, ip: string) {
   try {
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
@@ -30,56 +44,58 @@ async function recordFailedLoginAttempt(email: string, ip: string) {
         where: { ip_email },
         data: {
           attempts: attempt.updatedAt < fifteenMinutesAgo ? 1 : { increment: 1 },
+          success: false,
           updatedAt: new Date(),
         },
       });
     } else {
       await prisma.loginAttempt.create({
-        data: { ip, email, attempts: 1 },
+        data: { ip, email, attempts: 1, success: false },
       });
     }
   } catch (error) {
-    console.error('Failed to record login attempt:', error);
+    console.error('⚠️ Failed to record login attempt (Metrics Error):', error);
   }
 }
 
-// --- دالة إنشاء حساب جديد ---
+// =============================================================================
+// 2. Core Services
+// =============================================================================
+
+// --- خدمة إنشاء حساب جديد ---
 export const signup = async (
   { email, username, password }: Pick<User, 'email' | 'username' | 'password'>
 ) => {
-  // تأكيد وجود مفاتيح JWT (فقط للأمان؛ signJwt بيفحصها بعد)
-  if (!process.env.JWT_SECRET || !process.env.JWT_EXPIRATION) {
-    throw new Error('JWT secret or expiration is not defined in .env file.');
-  }
-
   const existingUser = await prisma.user.findFirst({
-    where: { OR: [{ email }, { username: username || undefined }] },
+    where: { 
+      OR: [
+        { email }, 
+        { username: username || undefined } 
+      ] 
+    },
   });
+
   if (existingUser) {
     throw new Error('Email or username already exists');
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  
+  // إنشاء المستخدم (lastSignedIn سيكون null افتراضياً)
   const user = await prisma.user.create({
     data: { email, username, password: hashedPassword },
   });
 
   const token = signJwt({ id: user.id, role: user.role });
-
   const { password: _, ...userWithoutPassword } = user;
   return { token, user: userWithoutPassword };
 };
 
-// --- دالة تسجيل الدخول ---
+// --- خدمة تسجيل الدخول ---
 export const login = async (
   { email, password }: Pick<User, 'email' | 'password'>,
   ip: string
 ) => {
-  // تأكيد وجود مفاتيح JWT (فقط للأمان؛ signJwt بيفحصها بعد)
-  if (!process.env.JWT_SECRET || !process.env.JWT_EXPIRATION) {
-    throw new Error('JWT secret or expiration is not defined in .env file.');
-  }
-
   const user = await prisma.user.findUnique({ where: { email } });
   const isPasswordValid = user ? await bcrypt.compare(password, user.password) : false;
 
@@ -88,22 +104,32 @@ export const login = async (
     throw new Error('Invalid credentials or inactive account');
   }
 
-  const ip_email: Prisma.LoginAttemptIpEmailCompoundUniqueInput = { ip, email };
-  const existingAttempt = await prisma.loginAttempt.findUnique({ where: { ip_email } });
-  if (existingAttempt && existingAttempt.attempts > 0) {
-    await prisma.loginAttempt.update({
-      where: { ip_email },
-      data: { attempts: 0 },
-    });
+  // ✅ Fix 2: استخدام Transaction لتحديث lastSignedIn وتصفير المحاولات
+  // (يعمل الآن لأنك أضفت الحقل للسكيما)
+  try {
+    await prisma.$transaction([
+      // أ: تحديث سجل المحاولات ليكون ناجحاً
+      prisma.loginAttempt.upsert({
+        where: { ip_email: { ip, email } },
+        update: { attempts: 0, success: true, updatedAt: new Date() },
+        create: { ip, email, attempts: 0, success: true },
+      }),
+      // ب: تحديث وقت آخر ظهور للمستخدم
+      prisma.user.update({
+        where: { id: user.id },
+        data: { lastSignedIn: new Date() }, // ✅ الآن هذا السطر صحيح 100%
+      }),
+    ]);
+  } catch (err) {
+    console.error('⚠️ Audit log update failed during login, but allowing user access.', err);
   }
 
   const token = signJwt({ id: user.id, role: user.role });
-
   const { password: _, ...userWithoutPassword } = user;
   return { token, user: userWithoutPassword };
 };
 
-// --- دالة جلب بيانات الملف الشخصي ---
+// --- خدمة جلب الملف الشخصي ---
 export const getProfile = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -114,6 +140,7 @@ export const getProfile = async (userId: string) => {
       role: true,
       status: true,
       createdAt: true,
+      lastSignedIn: true, // ✅ ونسترجع الحقل هنا أيضاً للعرض في الفرونت إند
     },
   });
 

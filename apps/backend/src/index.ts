@@ -1,18 +1,19 @@
 // src/index.ts
 
-// --- Core Dependencies ---
+// =============================================================================
+// 1. Core Dependencies & Configuration
+// =============================================================================
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import compression from 'compression';
 
-// --- Database & AI Clients ---
+// --- Database Client ---
 import { PrismaClient } from '@prisma/client';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// --- Middlewares ---
+// --- Middleware Imports ---
 import { loginLimiter } from './middleware/bruteForceProtection.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { authenticateToken } from './middleware/authenticateToken.js';
@@ -23,123 +24,118 @@ import folderRoutes from './routes/folderRoutes.js';
 import regexRoutes from './routes/regexRoutes.js';
 import ruleRoutes from './routes/ruleRoutes.js';
 
-// ✅ Newly added (you’ll add these files later)
+// ✅ تم تفعيل استيراد المسارات الجديدة (Uncommented)
 import testcaseRoutes from './routes/testcaseRoutes.js';
 import logRoutes from './routes/generationLogRoutes.js';
 import loginAttemptRoutes from './routes/loginAttemptRoutes.js';
 import regexAIRoutes from './routes/regexAIRoutes.js';
-
+import userRoutes from './routes/userRoutes.js';
 
 // --- Initialize Environment ---
 dotenv.config();
 
-// --- Initialize App ---
+// =============================================================================
+// 2. App Initialization & Environment Checks
+// =============================================================================
 const app: Express = express();
 const PORT = process.env.PORT || 8000;
-
-// --- Initialize External Services ---
 const prisma = new PrismaClient();
 
-// ✅ Check Environment Keys
-if (!process.env.GEMINI_API_KEY) {
-  console.warn('⚠️ Warning: GEMINI_API_KEY is missing. AI generation will not work properly.');
-}
-if (!process.env.JWT_SECRET) {
-  console.warn('⚠️ Warning: JWT_SECRET is missing. Authentication may fail.');
+const requiredEnv = ['DATABASE_URL', 'JWT_SECRET', 'GEMINI_API_KEY'];
+const missingEnv = requiredEnv.filter((key) => !process.env[key]);
+
+if (missingEnv.length > 0) {
+  console.error(`🚨 CRITICAL ERROR: Missing environment variables: ${missingEnv.join(', ')}`);
+  process.exit(1);
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+// =============================================================================
+// 3. Global Middleware Setup
+// =============================================================================
 
-// --- Global Middleware Setup ---
-// CORS Configuration
+app.use(helmet());
+app.disable('x-powered-by');
+
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
   optionsSuccessStatus: 200,
 };
 app.use(cors(corsOptions));
 
-// Security Headers
-app.use(helmet());
+app.use(compression());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// Logging
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 
-// JSON & URL-encoded Parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// ✅ Global API rate limiter
+// Rate Limiting
 app.use('/api', apiLimiter);
-
-// ✅ Login-specific brute force protection
 app.use('/api/auth/login', loginLimiter);
 
-// --- Health Check ---
+// =============================================================================
+// 4. Routes Mounting
+// =============================================================================
+
 app.get('/api/health', async (req: Request, res: Response) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.status(200).json({
-      status: 'UP',
-      database: 'connected',
-      timestamp: new Date().toISOString(),
-    });
+    res.status(200).json({ status: 'UP', database: 'connected' });
   } catch {
-    res.status(500).json({
-      status: 'DOWN',
-      database: 'disconnected',
-      timestamp: new Date().toISOString(),
-    });
+    res.status(503).json({ status: 'DOWN', database: 'disconnected' });
   }
 });
 
-// --- API Routes Mounting ---
+// ✅ تركيب المسارات الأساسية
 app.use('/api/auth', authRoutes);
 app.use('/api/folders', authenticateToken, folderRoutes);
 app.use('/api/regex', authenticateToken, regexRoutes);
 app.use('/api/rules', authenticateToken, ruleRoutes);
+
+// ✅ تركيب المسارات الجديدة (تم تفعيلها الآن)
+// هذه المسارات ضرورية لعمل الداشبورد والذكاء الاصطناعي
 app.use('/api/testcases', authenticateToken, testcaseRoutes);
-app.use('/api/generationlogs', authenticateToken, logRoutes);
+app.use('/api/logs', authenticateToken, logRoutes);
 app.use('/api/loginattempts', authenticateToken, loginAttemptRoutes);
 app.use('/api/ai/regex', authenticateToken, regexAIRoutes);
+app.use('/api/users', authenticateToken, userRoutes); // ✅ User Management Routes
 
-// --- Error Handling Middleware ---
+// =============================================================================
+// 5. Global Error Handling
+// =============================================================================
+
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.status(404).json({
-    message: 'Sorry, the requested resource was not found.',
-    path: req.originalUrl,
+    error: 'Not Found',
+    message: `The requested resource '${req.originalUrl}' was not found on this server.`,
   });
 });
 
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('🔥 Server Error:', err.stack || err);
-  res.status(500).json({
-    message: 'Something went wrong on the server.',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
-  });
+  const message = process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message;
+  res.status(500).json({ error: 'Internal Server Error', message });
 });
 
-// --- Database Connection & Server Startup ---
-async function main() {
+// =============================================================================
+// 6. Server Startup
+// =============================================================================
+
+async function startServer() {
   try {
     await prisma.$connect();
     console.log('✅ Database connected successfully.');
-
     app.listen(PORT, () => {
       console.log(`🚀 Server is running at http://localhost:${PORT}`);
     });
   } catch (error) {
-    console.error('❌ Failed to connect to the database:', error);
+    console.error('❌ Failed to start the server:', error);
     process.exit(1);
   }
 }
 
-main();
-
-// Graceful Shutdown
-process.on('beforeExit', async () => {
-  await prisma.$disconnect();
-  console.log('🔌 Database connection closed.');
-});
+startServer();

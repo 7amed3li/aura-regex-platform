@@ -175,3 +175,117 @@ export const likeRuleController = async (req: AuthenticatedRequest, res: Respons
     res.status(500).json({ error: 'Failed to like rule' });
   }
 };
+
+// 💔 Unlike Rule
+export const unlikeRuleController = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params as { id: string };
+  if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const like = await prisma.ruleLike.deleteMany({
+      where: { userId: req.user.id, ruleId: id },
+    });
+    res.json({ message: 'Unliked successfully' });
+  } catch (error) {
+    console.error('Unlike rule error:', error);
+    res.status(500).json({ error: 'Failed to unlike rule' });
+  }
+};
+
+// 🌍 Get Public Rules
+export const getPublicRulesController = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rules = await prisma.rule.findMany({
+      where: { isPublic: true },
+      include: {
+        user: { select: { username: true, email: true } }, // Include creator info
+        likes: true,
+        _count: { select: { likes: true, comments: true } } // ✅ Added comments count
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(rules);
+  } catch (error) {
+    console.error('Get public rules error:', error);
+    res.status(500).json({ error: 'Failed to fetch public rules' });
+  }
+};
+
+// 💬 Add Comment
+export const addCommentController = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { id: ruleId } = req.params;
+    const { content } = req.body;
+
+    if (!content) return res.status(400).json({ message: "Content is required" });
+
+    const comment = await prisma.comment.create({
+      data: {
+        content,
+        userId,
+        ruleId
+      },
+      include: {
+        user: {
+          select: { username: true, email: true }
+        }
+      }
+    });
+
+    res.status(201).json(comment);
+  } catch (error) {
+    console.error("Add comment error:", error);
+    res.status(500).json({ message: "Failed to add comment" });
+  }
+};
+
+// 🗨️ Get Comments
+export const getCommentsController = async (req: Request, res: Response) => {
+  try {
+    const { id: ruleId } = req.params;
+
+    const comments = await prisma.comment.findMany({
+      where: { ruleId },
+      include: {
+        user: {
+          select: { username: true, email: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(comments);
+  } catch (error) {
+    console.error("Get comments error:", error);
+    res.status(500).json({ message: "Failed to fetch comments" });
+  }
+};
+
+// 👁️ Toggle Visibility
+export const updateRuleVisibilityController = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { id } = req.params;
+    const { isPublic } = req.body;
+
+    // Verify ownership
+    const rule = await prisma.rule.findUnique({ where: { id } });
+    if (!rule) return res.status(404).json({ message: "Rule not found" });
+    if (rule.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+
+    const updatedRule = await prisma.rule.update({
+      where: { id },
+      data: { isPublic }
+    });
+
+    res.json(updatedRule);
+  } catch (error) {
+    console.error("Update visibility error:", error);
+    res.status(500).json({ message: "Failed to update visibility" });
+  }
+};

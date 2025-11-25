@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+.env
+*.zip
+*.docx
+*.log
+.DS_Store
+coverage
+.vscode

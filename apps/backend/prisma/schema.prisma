@@ -1,5 +1,5 @@
 // =======================================================
-//  Aura Regex Platform - Final Schema v3.1 (Corrected)
+//  Aura Regex Platform - Final Schema v3.1 (Fixed)
 // =======================================================
 
 // 1. Configuration
@@ -32,21 +32,27 @@ enum RegexSafety {
 
 // 3. User Model (with Roles and Status)
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  username  String?  @unique
+  id        String        @id @default(cuid())
+  email     String        @unique
+  username  String?       @unique
   password  String
-  role      UserRole @default(USER)
+  role      UserRole      @default(USER)
   status    AccountStatus @default(ACTIVE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  
+  // ✅ الحقول الزمنية (تمت إزالة التكرار)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  
+  // ✅ الحقل الجديد (Google Style Auditing)
+  lastSignedIn DateTime?
 
   // Relationships
   folders        Folder[]
   rules          Rule[]
   generationLogs GenerationLog[]
   likes          RuleLike[]
-  testCases      TestCase[] // <-- السطر الذي أضفناه
+  testCases      TestCase[] 
+  comments       Comment[]
 }
 
 // 4. Folder Model (for organizing rules)
@@ -77,45 +83,46 @@ model Rule {
   isPublic    Boolean  @default(false) // For sharing
   timesUsed   Int      @default(0)     // For stats
   lastUsedAt  DateTime?                // For stats
-  
+   
   // Security fields
   safetyStatus    RegexSafety @default(UNKNOWN)
   safetyDetails   String?     // Details from the ReDoS analysis library
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+   
   // Relationships
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   folderId    String?
-  folder      Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  folder      Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
   versions    RuleVersion[]
   testCases   TestCase[]
   likes       RuleLike[]
-  
+  comments    Comment[]
+   
   @@index([userId])
   @@index([folderId])
 }
 
 // 6. TestCase Model
 model TestCase {
-  id        String   @id @default(cuid())
-  name      String   // e.g., "Should match valid email"
-  testText  String   // The text to test the regex against
+  id          String   @id @default(cuid())
+  name        String   // e.g., "Should match valid email"
+  testText    String   // The text to test the regex against
   shouldMatch Boolean  // True if it's a success case, False if it's a failure case
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   // Relationship to Rule (Made optional)
   ruleId String?
-  rule   Rule?   @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  rule   Rule?    @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
   // Relationship to User (Added)
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([ruleId])
-  @@index([userId]) // Added index for user
+  @@index([userId]) 
 }
 
 
@@ -150,10 +157,13 @@ model RuleVersion {
 // 9. GenerationLog Model
 model GenerationLog {
   id            String    @id @default(cuid())
-  correlationId String? @default(cuid())
+  correlationId String?   @default(cuid())
   input         String
   output        String
-  explanation     String?
+  explanation   String?
+  generationType String? // 'ACADEMIC' or 'DAILY'
+  pythonExampleCode String?
+
   isSuccess     Boolean
   executionTime Int
   modelVersion  String?
@@ -161,7 +171,7 @@ model GenerationLog {
   rating        Int?
   wasCorrect    Boolean?
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt   
+  updatedAt     DateTime  @updatedAt    
 
   userId String?
   user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -184,3 +194,19 @@ model LoginAttempt {
   @@index([ip]) // Improve query performance for IP-based checks
 }
 
+// 11. Comment Model (New for Social Features)
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ruleId    String
+  rule      Rule     @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([userId])
+}

@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import type { AuthenticatedRequest } from '../types/auth.js'; // لو حطيته في ملف مستقل
+import type { AuthenticatedRequest } from '../types/express.js'; // Adjusted path based on file list
 const prisma = new PrismaClient();
 
 // 🟢 Create Folder
@@ -18,8 +18,12 @@ export const createFolderController = async (req: AuthenticatedRequest, res: Res
     });
 
     res.status(201).json(folder);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create folder error:', error);
+    // ✅ Handle Unique Constraint Violation (P2002)
+    if (error.code === 'P2002') {
+      return res.status(409).json({ error: 'Bu isimde bir klasör zaten var.' });
+    }
     res.status(500).json({ error: 'Failed to create folder' });
   }
 };
